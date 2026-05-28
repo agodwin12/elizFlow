@@ -1,0 +1,22 @@
+model Customer {
+  id          String    @id @default(cuid())
+  name        String
+  phone       String?
+  address     String?
+  totalDebt   Float     @default(0)
+  creditLimit Float     @default(50000)
+  isActive    Boolean   @default(true)
+  depotId     String
+  depot       Depot     @relation(fields: [depotId], references: [id])
+  sales       Sale[]
+  payments    Payment[]
+  photoUrl    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  deliveryStops DeliveryStop[]
+
+  @@index([depotId])
+  @@index([depotId, isActive])
+  @@index([totalDebt])
+}

@@ -1,0 +1,20 @@
+model Depot {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  phone     String?
+  city      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  logoUrl   String?
+
+  users          User[]
+  products       Product[]
+  customers      Customer[]
+  sales          Sale[]
+  payments       Payment[]
+  stockMovements StockMovement[]
+  tournees       Tournee[]
+  deliveryStops  DeliveryStop[]
+}

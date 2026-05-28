@@ -1,0 +1,19 @@
+model Payment {
+  id            String   @id @default(cuid())
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  saleId        String?
+  sale          Sale?    @relation(fields: [saleId], references: [id])
+  depotId       String
+  depot         Depot    @relation(fields: [depotId], references: [id])
+  amount        Float
+  paymentType   String   @default("CASH")
+  note          String?
+  createdAt     DateTime @default(now())
+
+
+
+    @@index([depotId])
+    @@index([customerId])
+    @@index([createdAt])
+}

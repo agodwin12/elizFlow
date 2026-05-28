@@ -1,0 +1,52 @@
+model Sale {
+  id            String      @id @default(cuid())
+  customerId    String?
+  customer      Customer?   @relation(fields: [customerId], references: [id])
+  depotId       String
+  depot         Depot       @relation(fields: [depotId], references: [id])
+  soldById      String
+  soldBy        User        @relation(fields: [soldById], references: [id])
+  items         SaleItem[]
+  payments      Payment[]
+  totalAmount   Float
+  totalCost     Float
+  totalProfit   Float
+  amountPaid    Float       @default(0)
+  amountDue     Float       @default(0)
+  paymentType   String      @default("CASH")
+  status        String      @default("COMPLETED")
+  note          String?
+
+  // Cancellation fields
+  cancelledAt      DateTime?
+  cancelledById    String?
+  cancelledBy      User?     @relation("CancelledSales", fields: [cancelledById], references: [id])
+  cancellationReason String?
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([depotId])
+  @@index([customerId])
+  @@index([soldById])
+  @@index([createdAt])
+  @@index([depotId, createdAt])
+  @@index([status])
+}
+
+model SaleItem {
+  id            String   @id @default(cuid())
+  saleId        String
+  sale          Sale     @relation(fields: [saleId], references: [id])
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  quantity      Int
+  unitPrice     Float
+  costPrice     Float
+  profit        Float
+  createdAt     DateTime @default(now())
+
+
+    @@index([saleId])
+    @@index([productId])
+}

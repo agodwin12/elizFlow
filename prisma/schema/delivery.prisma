@@ -1,0 +1,53 @@
+enum TourneeStatus {
+  PLANNED
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+enum StopStatus {
+  PENDING
+  DELIVERED
+  PARTIAL
+  FAILED
+}
+
+model Tournee {
+  id           String        @id @default(cuid())
+  depotId      String
+  depot        Depot         @relation(fields: [depotId], references: [id])
+  driverId     String
+  driver       User          @relation("DriverTournees", fields: [driverId], references: [id])
+  createdById  String
+  createdBy    User          @relation("CreatedTournees", fields: [createdById], references: [id])
+  status       TourneeStatus @default(PLANNED)
+  note         String?
+  dispatchedAt DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  stops DeliveryStop[]
+}
+
+model DeliveryStop {
+  id             String     @id @default(cuid())
+  tourneeId      String
+  tournee        Tournee    @relation(fields: [tourneeId], references: [id])
+  customerId     String
+  customer       Customer   @relation(fields: [customerId], references: [id])
+  depotId        String
+  depot          Depot      @relation(fields: [depotId], references: [id])
+  status         StopStatus @default(PENDING)
+  plannedItems   Json
+  deliveredItems Json?
+  returnedItems  Json?
+  amountExpected Float
+  amountPaid     Float      @default(0)
+  debtCreated    Float      @default(0)
+  smsSent        Boolean    @default(false)
+  note           String?
+  deliveredAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}

@@ -1,0 +1,23 @@
+model Product {
+  id                String   @id @default(cuid())
+  name              String
+  category          String
+  imageUrl          String?
+  costPrice         Float
+  sellingPrice      Float
+  stock             Int      @default(0)
+  unit String @default("CASIER")
+  lowStockThreshold Int      @default(10)
+  isActive          Boolean  @default(true)
+  depotId           String
+  depot             Depot    @relation(fields: [depotId], references: [id])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  saleItems SaleItem[]
+  stockMovements StockMovement[]
+
+  @@index([depotId])
+  @@index([depotId, isActive])   // most used - active products per depot
+  @@index([name])
+}

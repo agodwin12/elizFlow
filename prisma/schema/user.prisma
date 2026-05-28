@@ -1,0 +1,35 @@
+enum Role {
+  SUPER_ADMIN
+  OWNER
+  ADMIN
+  CASHIER
+  DRIVER
+}
+
+model User {
+  id           String  @id @default(cuid())
+  name         String
+  phone        String  @unique
+  password     String
+  role         Role
+  isActive     Boolean @default(true)
+  depotId      String?
+  fcmToken     String?
+  refreshToken String?
+  imageUrl     String?
+  avatarUrl    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  depot           Depot?          @relation(fields: [depotId], references: [id])
+  sales           Sale[]
+  stockMovements  StockMovement[]
+  cancelledSales  Sale[]          @relation("CancelledSales")
+  driverTournees  Tournee[]       @relation("DriverTournees")
+  createdTournees Tournee[]       @relation("CreatedTournees")
+
+  @@index([depotId])
+  @@index([depotId, role])
+  @@index([depotId, isActive])
+}
