@@ -122,6 +122,21 @@ refused at **login** and by a **route guard** with:
   "code": "SUBSCRIPTION_REQUIRED" }
 ```
 
+### Choosing the subscription at depot creation
+
+`POST /api/auth/create-depot` accepts an optional subscription choice:
+
+- Default (public self-signup, or no `subscriptionType`): a **free trial of
+  `TRIAL_DAYS` days (default 14 = 2 weeks)** — `subscriptionStatus=TRIAL`,
+  `trialEndsAt = now + 14d`.
+- **Super admin only** (request carries a valid SUPER_ADMIN bearer token):
+  pass `subscriptionType=PAID` and `subscriptionMonths=N` to start an **ACTIVE**
+  paid subscription ending `now + N months`. A non-admin cannot self-grant a
+  paid plan — it is forced to the trial.
+
+The response `depot` includes `subscriptionStatus`, `trialEndsAt`,
+`subscriptionEndsAt`.
+
 Super-admin endpoints:
 
 | Endpoint | |
@@ -129,9 +144,13 @@ Super-admin endpoints:
 | `GET  /api/admin/subscriptions` | overview with computed status |
 | `POST /api/admin/depots/:id/block` `{ reason }` | block (e.g. non-payment) |
 | `POST /api/admin/depots/:id/unblock` | unblock |
-| `PATCH /api/admin/depots/:id/subscription` | set plan / status / end date |
-| `POST /api/admin/depots/:id/subscription/pay` `{ amount, periodDays }` | record a payment, extend & re-activate |
+| `PATCH /api/admin/depots/:id/subscription` | set plan / status / end date / trialEndsAt |
+| `POST /api/admin/depots/:id/subscription/extend` `{ months }` | **+N months** (default 1), re-activates & unblocks |
+| `POST /api/admin/depots/:id/subscription/pay` `{ amount, months }` | record a payment, extend by N calendar months, re-activate |
 | `GET  /api/admin/depots/:id/subscription/payments` | payment ledger |
+
+Expiry blocks **every user of the depot** (owner, admin, cashier, driver) at
+login and via the route guard — not just the owner.
 
 ## 8. Security & scale
 

@@ -76,10 +76,18 @@ priority. Base URL unchanged; all endpoints require `Authorization: Bearer`.
 - **Restock/adjust**: now accept `stockUnit` (PACKAGE|BASE) and `supplierId`.
 
 ## 9. Super-admin app area (subscription mgmt)  (MEDIUM)
+- **Create-depot screen**: add a subscription picker —
+  *Trial (2 weeks)* [default] or *Paid* with a month stepper (1, 2, 3 …).
+  Send `subscriptionType=TRIAL|PAID` and `subscriptionMonths=N` on
+  `POST /api/auth/create-depot` **with the super-admin token** (paid is ignored
+  for non-admins). Show the returned `subscriptionStatus` / end date.
 - Overview `GET /api/admin/subscriptions` (effectiveStatus, daysRemaining).
+- **+1 month button**: `POST /api/admin/depots/:id/subscription/extend {months:1}`.
 - Block `POST /api/admin/depots/:id/block {reason}` / unblock `/unblock`.
-- Record payment `POST /api/admin/depots/:id/subscription/pay {amount, periodDays}`.
+- Record payment `POST /api/admin/depots/:id/subscription/pay {amount, months}`.
 - Update `PATCH /api/admin/depots/:id/subscription`; ledger `…/subscription/payments`.
+- Note: expiry blocks **all** depot users at login (owner, cashier, driver) — the
+  app should route any `SUBSCRIPTION_REQUIRED` to the “please subscribe” screen.
 
 ## Suggested build order for the next session
 1. Subscription-block handling + login `subscription` field (unblocks everything).
