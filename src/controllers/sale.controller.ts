@@ -189,6 +189,12 @@ export const createSale = asyncHandler(async (req: Request, res: Response) => {
             ? await findOpenShiftId(depotId, user.userId)
             : null;
 
+    // Allocate the receipt number in its own atomic statement BEFORE the main
+    // transaction so the per-depot counter row lock is held only momentarily,
+    // not for the whole sale transaction. A rare gap on rollback is acceptable.
+    const receiptNumber =
+        status === "COMPLETED" ? await nextReceiptNumber(prisma, depotId) : null;
+
     const sale = await prisma.$transaction(async (tx) => {
         // Deduct stock for COMPLETED and OPEN (goods physically leave). HELD keeps stock.
         if (status === "COMPLETED" || status === "OPEN") {
@@ -214,9 +220,6 @@ export const createSale = asyncHandler(async (req: Request, res: Response) => {
                 });
             }
         }
-
-        const receiptNumber =
-            status === "COMPLETED" ? await nextReceiptNumber(tx, depotId) : null;
 
         const newSale = await tx.sale.create({
             data: {
@@ -270,8 +273,10 @@ export const createSale = asyncHandler(async (req: Request, res: Response) => {
         return newSale;
     });
 
+    // Fire notifications AFTER responding — they must never add latency to (or
+    // fail) the sale. notifyAfterSale swallows its own errors internally.
     if (status === "COMPLETED" || status === "OPEN") {
-        await notifyAfterSale(
+        notifyAfterSale(
             depotId,
             user.userId,
             sale.id,
@@ -279,7 +284,7 @@ export const createSale = asyncHandler(async (req: Request, res: Response) => {
             amountDue > 0,
             sale.customer?.name || null,
             built.lines
-        );
+        ).catch(() => {});
     }
 
     return res.status(201).json({

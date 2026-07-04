@@ -16,9 +16,12 @@ import { rateLimit } from "../middlewares/ratelimit.middleware";
 const router = Router();
 
 // Throttle credential + reset endpoints to blunt brute-force / SMS abuse.
+// Tunable via env so operators can adjust for shared/NAT'd client IPs without
+// a code change. Defaults protect against brute force while staying friendly to
+// multiple cashiers behind one router.
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 30,
+    windowMs: (parseInt(process.env.AUTH_RATE_WINDOW_MIN || "15", 10) || 15) * 60 * 1000,
+    max: parseInt(process.env.AUTH_RATE_MAX || "40", 10) || 40,
     keyPrefix: "auth",
     message: "Trop de tentatives. Réessayez dans quelques minutes.",
 });
