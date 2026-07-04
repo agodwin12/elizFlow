@@ -68,6 +68,12 @@ export const login = async (req: Request, res: Response) => {
             include: {
                 depot: {
                     select: {
+                        // Header info the app stores for receipts / dashboard.
+                        name: true,
+                        city: true,
+                        phone: true,
+                        address: true,
+                        // Subscription fields used by the gate below.
                         isActive: true,
                         subscriptionStatus: true,
                         subscriptionEndsAt: true,
@@ -121,6 +127,14 @@ export const login = async (req: Request, res: Response) => {
                 phone: user.phone,
                 role: user.role,
                 depotId: user.depotId,
+                depot: user.depot
+                    ? {
+                          name: user.depot.name,
+                          city: user.depot.city,
+                          phone: user.depot.phone,
+                          address: user.depot.address,
+                      }
+                    : null,
             },
             subscription: subscription
                 ? {
