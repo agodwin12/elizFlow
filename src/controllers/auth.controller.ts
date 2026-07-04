@@ -8,6 +8,24 @@ import { v4 as uuidv4 } from "uuid";
 import { evaluateSubscription } from "../lib/subscription";
 import { issueOtp, verifyOtp, isSmsConfigured } from "../lib/otp";
 import { sendSmsOtp } from "../services/comm/sms.service";
+import { addMonths, addDays } from "../lib/dates";
+
+// Free-trial length (days) for a newly created depot. Configurable.
+const TRIAL_DAYS = parseInt(process.env.TRIAL_DAYS || "14", 10) || 14;
+
+// Best-effort decode of a bearer token to see if the caller is a SUPER_ADMIN.
+// Used so only a super admin can grant a PAID subscription at depot creation;
+// everyone else (public self-signup) gets the free trial.
+function callerIsSuperAdmin(req: Request): boolean {
+    try {
+        const h = req.headers.authorization;
+        if (!h || !h.startsWith("Bearer ")) return false;
+        const decoded: any = jwt.verify(h.split(" ")[1], process.env.JWT_SECRET as string);
+        return decoded?.role === "SUPER_ADMIN";
+    } catch {
+        return false;
+    }
+}
 
 // When set to "false", the legacy phone-only password reset is disabled and an
 // OTP code becomes mandatory. Defaults to enabled so existing apps keep working.
@@ -327,6 +345,36 @@ export const createDepot = async (req: Request, res: Response) => {
             return res.status(400).json({ message: "Phone already in use" });
         }
 
+        // ── Decide the initial subscription ───────────────────────────
+        // Default: a free trial of TRIAL_DAYS (2 weeks). A super admin may
+        // instead grant a PAID subscription for a chosen number of months.
+        const {
+            subscriptionType, // "TRIAL" | "PAID"
+            subscriptionMonths, // integer number of months for PAID
+            subscriptionPlan,
+        } = req.body;
+
+        const isAdmin = callerIsSuperAdmin(req);
+        const now = new Date();
+        let subFields: any;
+
+        if (isAdmin && String(subscriptionType).toUpperCase() === "PAID") {
+            const months = Math.max(1, Math.round(Number(subscriptionMonths) || 1));
+            subFields = {
+                subscriptionStatus: "ACTIVE",
+                subscriptionEndsAt: addMonths(now, months),
+                trialEndsAt: null,
+                ...(subscriptionPlan ? { subscriptionPlan } : {}),
+            };
+        } else {
+            // Free trial (default for everyone, including public self-signup).
+            subFields = {
+                subscriptionStatus: "TRIAL",
+                trialEndsAt: addDays(now, TRIAL_DAYS),
+                subscriptionEndsAt: null,
+            };
+        }
+
         let logoUrl: string | undefined;
         if (req.file) {
             try {
@@ -354,6 +402,7 @@ export const createDepot = async (req: Request, res: Response) => {
                 address: depotAddress || null,
                 phone: depotPhone || null,
                 ...(logoUrl && { logoUrl }),
+                ...subFields,
                 users: {
                     create: {
                         name: ownerName,
@@ -379,6 +428,9 @@ export const createDepot = async (req: Request, res: Response) => {
                 name: depot.name,
                 city: depot.city,
                 logoUrl: depot.logoUrl,
+                subscriptionStatus: depot.subscriptionStatus,
+                trialEndsAt: depot.trialEndsAt,
+                subscriptionEndsAt: depot.subscriptionEndsAt,
             },
         });
     } catch (error) {

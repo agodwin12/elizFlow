@@ -58,7 +58,7 @@ export const createTournee = async (req: Request, res: Response) => {
                 data: {
                     depotId: user.depotId!,
                     driverId,
-                    createdById: user.id,
+                    createdById: user.userId,
                     note,
                     stops: {
                         create: stops.map((stop: any) => ({
@@ -138,7 +138,7 @@ export const dispatchTournee = async (req: Request, res: Response) => {
                         data: {
                             productId: item.productId,
                             depotId: user.depotId!,
-                            userId: user.id,
+                            userId: user.userId,
                             type: 'DELIVERY_DISPATCH',
                             quantity: -item.quantity,
                             previousStock: product.stock,
@@ -201,7 +201,7 @@ export const confirmStop = async (req: Request, res: Response) => {
         }
 
         // Only driver assigned to this tournee or owner/cashier can confirm
-        const isDriver = user.role === 'DRIVER' && stop.tournee.driverId === user.id;
+        const isDriver = user.role === 'DRIVER' && stop.tournee.driverId === user.userId;
         const isOwnerOrCashier = ['OWNER', 'CASHIER', 'ADMIN'].includes(user.role);
         if (!isDriver && !isOwnerOrCashier) {
             return res.status(403).json({ message: 'Access denied' });
@@ -243,7 +243,7 @@ export const confirmStop = async (req: Request, res: Response) => {
                             data: {
                                 productId: item.productId,
                                 depotId: user.depotId!,
-                                userId: user.id,
+                                userId: user.userId,
                                 type: 'DELIVERY_RETURN',
                                 quantity: item.quantity,
                                 previousStock: product.stock,
@@ -319,7 +319,7 @@ export const closeTournee = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Only IN_TRANSIT tournees can be closed' });
         }
 
-        const isDriver = user.role === 'DRIVER' && tournee.driverId === user.id;
+        const isDriver = user.role === 'DRIVER' && tournee.driverId === user.userId;
         const isOwnerOrCashier = ['OWNER', 'CASHIER', 'ADMIN'].includes(user.role);
         if (!isDriver && !isOwnerOrCashier) {
             return res.status(403).json({ message: 'Access denied' });
@@ -373,7 +373,7 @@ export const getTournees = async (req: Request, res: Response) => {
         const user = req.user!;
 
         const where: any = { depotId: user.depotId! };
-        if (user.role === 'DRIVER') where.driverId = user.id;
+        if (user.role === 'DRIVER') where.driverId = user.userId;
 
         const tournees = await prisma.tournee.findMany({
             where,
@@ -421,7 +421,7 @@ export const getTourneeById = async (req: Request, res: Response) => {
         if (!tournee) return res.status(404).json({ message: 'Tournee not found' });
 
         // Driver can only see their own tournee
-        if (user.role === 'DRIVER' && tournee.driverId !== user.id) {
+        if (user.role === 'DRIVER' && tournee.driverId !== user.userId) {
             return res.status(403).json({ message: 'Access denied' });
         }
 

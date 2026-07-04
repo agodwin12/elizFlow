@@ -5,6 +5,7 @@ import { audit } from "../lib/audit";
 import { evaluateSubscription } from "../lib/subscription";
 import { invalidateSubscriptionCache } from "../middlewares/subscription.middleware";
 import { getPagination, pageMeta } from "../lib/pagination";
+import { addMonths } from "../lib/dates";
 
 function requireSuperAdmin(req: Request) {
     if (req.user?.role !== "SUPER_ADMIN") {
@@ -112,11 +113,53 @@ export const updateSubscription = asyncHandler(async (req: Request, res: Respons
     return res.status(200).json({ message: "Subscription updated", depot: updated });
 });
 
+// ─── EXTEND SUBSCRIPTION BY N MONTHS (default +1 month) ─────────────
+// The simple "add a month" action: extends from the later of now / current end,
+// re-activates and unblocks the depot. No payment amount required.
+export const extendSubscription = asyncHandler(async (req: Request, res: Response) => {
+    requireSuperAdmin(req);
+    const id = req.params.id;
+    const depot = await getDepotOr404(id);
+
+    const months = Math.max(1, Math.round(Number(req.body.months) || 1));
+    const now = new Date();
+    const base =
+        depot.subscriptionEndsAt && depot.subscriptionEndsAt > now
+            ? depot.subscriptionEndsAt
+            : now;
+    const newEnd = addMonths(base, months);
+
+    const updated = await prisma.depot.update({
+        where: { id },
+        data: {
+            subscriptionStatus: "ACTIVE",
+            subscriptionEndsAt: newEnd,
+            blockedReason: null,
+            blockedAt: null,
+            isActive: true,
+        },
+    });
+    invalidateSubscriptionCache(id);
+    await audit({
+        depotId: id,
+        userId: req.user?.userId,
+        action: "SUBSCRIPTION_EXTENDED",
+        entity: "Depot",
+        entityId: id,
+        meta: { months, newEnd },
+    });
+
+    return res.status(200).json({
+        message: `Subscription extended by ${months} month(s)`,
+        depot: updated,
+    });
+});
+
 // ─── RECORD A SUBSCRIPTION PAYMENT (extends the period, sets ACTIVE) ─
 export const recordSubscriptionPayment = asyncHandler(async (req: Request, res: Response) => {
     requireSuperAdmin(req);
     const id = req.params.id;
-    const { amount, plan, periodDays, periodEnd, method, reference, note } = req.body;
+    const { amount, plan, months, periodDays, periodEnd, method, reference, note } = req.body;
 
     const depot = await getDepotOr404(id);
     const amt = Number(amount);
@@ -124,17 +167,21 @@ export const recordSubscriptionPayment = asyncHandler(async (req: Request, res: 
         throw ApiError.badRequest("A valid payment amount is required");
     }
 
-    // Determine the new period end: explicit date, or extend by periodDays
-    // (default 30) from the later of now / current end.
+    // Determine the new period end (from the later of now / current end):
+    //   - explicit `periodEnd` date, or
+    //   - `months` calendar months (preferred), or
+    //   - `periodDays` (defaults to 30).
     const now = new Date();
+    const base =
+        depot.subscriptionEndsAt && depot.subscriptionEndsAt > now
+            ? depot.subscriptionEndsAt
+            : now;
     let newEnd: Date;
     if (periodEnd) {
         newEnd = new Date(periodEnd);
+    } else if (months !== undefined && months !== null && Number(months) > 0) {
+        newEnd = addMonths(base, Math.round(Number(months)));
     } else {
-        const base =
-            depot.subscriptionEndsAt && depot.subscriptionEndsAt > now
-                ? depot.subscriptionEndsAt
-                : now;
         const days = Number.isFinite(Number(periodDays)) ? Number(periodDays) : 30;
         newEnd = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
     }

@@ -11,6 +11,7 @@ import {
     blockDepot,
     unblockDepot,
     updateSubscription,
+    extendSubscription,
     recordSubscriptionPayment,
     getSubscriptionPayments,
     getSubscriptionOverview,
@@ -31,6 +32,7 @@ router.delete("/depots/:id", deleteDepot);
 router.get("/subscriptions", getSubscriptionOverview);
 router.get("/depots/:id/subscription/payments", getSubscriptionPayments);
 router.patch("/depots/:id/subscription", updateSubscription);
+router.post("/depots/:id/subscription/extend", extendSubscription);
 router.post("/depots/:id/subscription/pay", recordSubscriptionPayment);
 router.post("/depots/:id/block", blockDepot);
 router.post("/depots/:id/unblock", unblockDepot);
