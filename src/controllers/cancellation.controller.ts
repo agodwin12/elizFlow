@@ -88,12 +88,30 @@ export const cancelSale = async (req: Request, res: Response) => {
                 },
             });
 
-            // ── Restore stock for each item ───────────────────────
-            for (const item of sale.items) {
-                await tx.product.update({
-                    where: { id: item.productId },
-                    data: { stock: { increment: item.quantity } },
-                });
+            // ── Restore stock for each item (in BASE units) ───────
+            // Only sales that actually moved stock get it back. HELD carts
+            // never deducted stock, so skip them.
+            if (sale.status !== "HELD") {
+                for (const item of sale.items) {
+                    const restoreQty = item.baseQuantity || item.quantity;
+                    const updated = await tx.product.update({
+                        where: { id: item.productId },
+                        data: { stock: { increment: restoreQty } },
+                        select: { stock: true },
+                    });
+                    await tx.stockMovement.create({
+                        data: {
+                            product: { connect: { id: item.productId } },
+                            depot: { connect: { id: user.depotId! } },
+                            user: { connect: { id: user.userId } },
+                            type: "SALE_RETURN",
+                            quantity: restoreQty,
+                            previousStock: updated.stock - restoreQty,
+                            newStock: updated.stock,
+                            note: "Stock restored on sale cancellation",
+                        },
+                    });
+                }
             }
 
             // ── Reverse customer debt if credit sale ──────────────

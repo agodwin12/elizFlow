@@ -1,0 +1,20 @@
+// A business expense (fuel, salary, rent, transport, etc.) so that net
+// profit can be computed = gross profit - expenses.
+model Expense {
+  id      String @id @default(cuid())
+  depotId String
+  depot   Depot  @relation(fields: [depotId], references: [id])
+  userId  String
+  user    User   @relation(fields: [userId], references: [id])
+
+  category    String // e.g. TRANSPORT | SALARY | RENT | UTILITIES | SUPPLIES | OTHER
+  amount      Float
+  description String?
+  paymentType String  @default("CASH")
+
+  createdAt DateTime @default(now())
+
+  @@index([depotId])
+  @@index([depotId, createdAt])
+  @@index([category])
+}

@@ -15,6 +15,15 @@ import adminRoutes from './routes/admin.routes';
 import forecastRoutes from './routes/forecast.routes';
 import cancellationRoutes from './routes/cancellation.routes';
 import deliveryRoutes from './routes/delivery.routes';
+import returnRoutes from './routes/return.routes';
+import registerRoutes from './routes/register.routes';
+import expenseRoutes from './routes/expense.routes';
+import supplierRoutes from './routes/supplier.routes';
+import stockCountRoutes from './routes/stockcount.routes';
+
+import { requestLogger } from './middlewares/logger.middleware';
+import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
+import { prisma } from './lib/prisma';
 
 dotenv.config();
 
@@ -22,13 +31,24 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ── Middleware ─────────────────────────────────────────────────────
+app.set('trust proxy', 1); // behind nginx – needed for correct client IP / rate limiting
 app.use(helmet());
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
+app.use(requestLogger);
 
-// ── Health check ───────────────────────────────────────────────────
+// ── Health & readiness ─────────────────────────────────────────────
 app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', project: 'DepotFlow API' });
+    res.json({ status: 'ok', project: 'ElizFlow API', version: '2.0.0' });
+});
+
+app.get('/ready', async (_req, res) => {
+    try {
+        await prisma.$queryRaw`SELECT 1`;
+        res.json({ status: 'ready', db: 'up' });
+    } catch (err: any) {
+        res.status(503).json({ status: 'not-ready', db: 'down', error: err?.message });
+    }
 });
 
 // ── Routes ─────────────────────────────────────────────────────────
@@ -44,8 +64,17 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/forecast', forecastRoutes);
 app.use('/api', cancellationRoutes);
 app.use('/api/deliveries', deliveryRoutes);
+app.use('/api/returns', returnRoutes);
+app.use('/api/register', registerRoutes);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/suppliers', supplierRoutes);
+app.use('/api/stock-counts', stockCountRoutes);
 
-// ── Global error handlers ──────────────────────────────────────────
+// ── 404 + centralised error handler (must be last) ─────────────────
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+// ── Global safety nets ─────────────────────────────────────────────
 process.on('uncaughtException', (err) => {
     console.error('❌ UNCAUGHT EXCEPTION:', err.message);
     console.error(err.stack);
@@ -58,7 +87,7 @@ process.on('unhandledRejection', (reason: any) => {
 
 // ── Start server ───────────────────────────────────────────────────
 const server = app.listen(PORT, () => {
-    console.log(`🚀 DepotFlow API running on port ${PORT}`);
+    console.log(`🚀 ElizFlow API running on port ${PORT}`);
     console.log(`🌐 Health: http://localhost:${PORT}/health`);
 });
 
@@ -70,5 +99,27 @@ server.on('error', (err: any) => {
     }
     process.exit(1);
 });
+
+// ── Graceful shutdown ──────────────────────────────────────────────
+const shutdown = async (signal: string) => {
+    console.log(`\n${signal} received — shutting down gracefully...`);
+    server.close(async () => {
+        try {
+            await prisma.$disconnect();
+        } catch {
+            /* ignore */
+        }
+        console.log('✅ Closed out remaining connections. Bye.');
+        process.exit(0);
+    });
+    // Force-exit if it hangs.
+    setTimeout(() => {
+        console.error('⏱️  Forced shutdown after timeout.');
+        process.exit(1);
+    }, 10000).unref();
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 export default app;

@@ -1,0 +1,24 @@
+// A return / refund against a completed sale. Supports partial returns.
+model SaleReturn {
+  id      String @id @default(cuid())
+  saleId  String
+  sale    Sale   @relation(fields: [saleId], references: [id])
+  depotId String
+  depot   Depot  @relation(fields: [depotId], references: [id])
+  userId  String
+  user    User   @relation(fields: [userId], references: [id])
+
+  // Snapshot of returned lines: [{ productId, unitType, quantity, baseQuantity, unitPrice }]
+  items Json
+
+  totalRefund   Float
+  restock       Boolean @default(true) // whether returned goods went back to stock
+  refundMethod  String  @default("CASH") // how the refund was paid out (or CREDIT to reduce debt)
+  reason        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([saleId])
+  @@index([depotId])
+  @@index([createdAt])
+}

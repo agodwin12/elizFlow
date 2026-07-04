@@ -1,0 +1,21 @@
+// A supplier the depot restocks from.
+model Supplier {
+  id      String @id @default(cuid())
+  depotId String
+  depot   Depot  @relation(fields: [depotId], references: [id])
+
+  name     String
+  phone    String?
+  address  String?
+  note     String?
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products       Product[]
+  stockMovements StockMovement[]
+
+  @@index([depotId])
+  @@index([depotId, isActive])
+}

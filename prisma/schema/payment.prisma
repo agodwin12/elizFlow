@@ -1,19 +1,25 @@
 model Payment {
-  id            String   @id @default(cuid())
-  customerId    String?
-  customer      Customer? @relation(fields: [customerId], references: [id])
-  saleId        String?
-  sale          Sale?    @relation(fields: [saleId], references: [id])
-  depotId       String
-  depot         Depot    @relation(fields: [depotId], references: [id])
-  amount        Float
-  paymentType   String   @default("CASH")
-  note          String?
-  createdAt     DateTime @default(now())
+  id         String    @id @default(cuid())
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  saleId     String?
+  sale       Sale?     @relation(fields: [saleId], references: [id])
+  depotId    String
+  depot      Depot     @relation(fields: [depotId], references: [id])
 
+  // Who recorded this payment (cashier/owner). Optional for legacy rows.
+  recordedById String?
+  recordedBy   User?   @relation(fields: [recordedById], references: [id])
 
+  amount Float
+  // CASH | MOBILE_MONEY | MTN_MONEY | ORANGE_MONEY | CARD | BANK | CREDIT | REFUND
+  paymentType String  @default("CASH")
+  note        String?
+  createdAt   DateTime @default(now())
 
-    @@index([depotId])
-    @@index([customerId])
-    @@index([createdAt])
+  @@index([depotId])
+  @@index([customerId])
+  @@index([saleId])
+  @@index([recordedById])
+  @@index([createdAt])
 }

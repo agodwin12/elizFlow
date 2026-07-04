@@ -1,0 +1,21 @@
+// Lightweight audit trail for sensitive actions (price changes, cancellations,
+// stock corrections, user/subscription changes, etc.).
+model AuditLog {
+  id      String  @id @default(cuid())
+  depotId String?
+  depot   Depot?  @relation(fields: [depotId], references: [id])
+  userId  String?
+  user    User?   @relation(fields: [userId], references: [id])
+
+  action   String // e.g. SALE_CANCELLED | STOCK_CORRECTED | DEPOT_BLOCKED
+  entity   String? // e.g. Sale | Product | Depot
+  entityId String?
+  meta     Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([depotId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}

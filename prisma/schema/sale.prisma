@@ -1,52 +1,79 @@
 model Sale {
-  id            String      @id @default(cuid())
+  id            String       @id @default(cuid())
+  receiptNumber String?
   customerId    String?
-  customer      Customer?   @relation(fields: [customerId], references: [id])
+  customer      Customer?    @relation(fields: [customerId], references: [id])
   depotId       String
-  depot         Depot       @relation(fields: [depotId], references: [id])
+  depot         Depot        @relation(fields: [depotId], references: [id])
   soldById      String
-  soldBy        User        @relation(fields: [soldById], references: [id])
+  soldBy        User         @relation(fields: [soldById], references: [id])
   items         SaleItem[]
   payments      Payment[]
-  totalAmount   Float
-  totalCost     Float
-  totalProfit   Float
-  amountPaid    Float       @default(0)
-  amountDue     Float       @default(0)
-  paymentType   String      @default("CASH")
-  status        String      @default("COMPLETED")
-  note          String?
+  returns       SaleReturn[]
+
+  // Optional register shift this sale belongs to (Z-report reconciliation).
+  shiftId String?
+  shift   RegisterShift? @relation(fields: [shiftId], references: [id])
+
+  subtotal       Float @default(0) // sum of line totals before sale-level discount
+  discount       Float @default(0) // sale-level discount amount
+  totalAmount    Float
+  totalCost      Float
+  totalProfit    Float
+  amountPaid     Float @default(0)
+  amountDue      Float @default(0)
+  amountRefunded Float @default(0)
+
+  paymentType String  @default("CASH")
+  // COMPLETED | HELD (parked draft) | OPEN (running tab) | CANCELLED
+  // | REFUNDED | PARTIALLY_REFUNDED
+  status      String  @default("COMPLETED")
+  note        String?
+
+  // Optional label for held sales / bar tabs (e.g. "Table 4").
+  tabLabel String?
 
   // Cancellation fields
-  cancelledAt      DateTime?
-  cancelledById    String?
-  cancelledBy      User?     @relation("CancelledSales", fields: [cancelledById], references: [id])
+  cancelledAt        DateTime?
+  cancelledById      String?
+  cancelledBy        User?     @relation("CancelledSales", fields: [cancelledById], references: [id])
   cancellationReason String?
 
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([depotId])
   @@index([customerId])
   @@index([soldById])
   @@index([createdAt])
   @@index([depotId, createdAt])
+  @@index([depotId, status])
   @@index([status])
+  @@index([shiftId])
 }
 
 model SaleItem {
-  id            String   @id @default(cuid())
-  saleId        String
-  sale          Sale     @relation(fields: [saleId], references: [id])
-  productId     String
-  product       Product  @relation(fields: [productId], references: [id])
-  quantity      Int
-  unitPrice     Float
-  costPrice     Float
-  profit        Float
-  createdAt     DateTime @default(now())
+  id        String  @id @default(cuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
 
+  // How this line was sold: PACKAGE (crate) | HALF (half crate) | UNIT (bottle)
+  unitType String @default("PACKAGE")
 
-    @@index([saleId])
-    @@index([productId])
+  // quantity is expressed in the chosen unitType (e.g. 2 crates, 3 bottles).
+  quantity Int
+  // baseQuantity is the equivalent number of base units removed from stock.
+  baseQuantity Int @default(0)
+
+  unitPrice Float // price per unitType
+  costPrice Float // cost per unitType
+  discount  Float @default(0) // per-line discount amount
+  profit    Float
+
+  createdAt DateTime @default(now())
+
+  @@index([saleId])
+  @@index([productId])
 }

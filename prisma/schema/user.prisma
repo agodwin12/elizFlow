@@ -29,6 +29,14 @@ model User {
   driverTournees  Tournee[]       @relation("DriverTournees")
   createdTournees Tournee[]       @relation("CreatedTournees")
 
+  recordedPayments      Payment[]
+  registerShifts        RegisterShift[]
+  expenses              Expense[]
+  saleReturns           SaleReturn[]
+  auditLogs             AuditLog[]
+  recordedSubscriptions SubscriptionPayment[]
+  stockCounts           StockCount[]
+
   @@index([depotId])
   @@index([depotId, role])
   @@index([depotId, isActive])

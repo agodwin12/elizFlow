@@ -5,6 +5,13 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { r2Client } from "../lib/r2";
 import { v4 as uuidv4 } from "uuid";
+import { evaluateSubscription } from "../lib/subscription";
+import { issueOtp, verifyOtp, isSmsConfigured } from "../lib/otp";
+import { sendSmsOtp } from "../services/comm/sms.service";
+
+// When set to "false", the legacy phone-only password reset is disabled and an
+// OTP code becomes mandatory. Defaults to enabled so existing apps keep working.
+const ALLOW_LEGACY_RESET = process.env.ALLOW_LEGACY_RESET !== "false";
 
 // ── Helper: generate tokens ───────────────────────────────────────
 const generateTokens = (
@@ -40,6 +47,18 @@ export const login = async (req: Request, res: Response) => {
 
         const user = await prisma.user.findFirst({
             where: { phone, isActive: true },
+            include: {
+                depot: {
+                    select: {
+                        isActive: true,
+                        subscriptionStatus: true,
+                        subscriptionEndsAt: true,
+                        trialEndsAt: true,
+                        gracePeriodDays: true,
+                        blockedReason: true,
+                    },
+                },
+            },
         });
 
         if (!user) {
@@ -49,6 +68,19 @@ export const login = async (req: Request, res: Response) => {
         const isValid = await bcrypt.compare(password, user.password);
         if (!isValid) {
             return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        // ── Subscription gate (super admin bypasses) ──────────────────
+        let subscription: ReturnType<typeof evaluateSubscription> | null = null;
+        if (user.role !== 'SUPER_ADMIN' && user.depot) {
+            subscription = evaluateSubscription(user.depot);
+            if (subscription.blocked) {
+                return res.status(403).json({
+                    message: subscription.message,
+                    code: 'SUBSCRIPTION_REQUIRED',
+                    reason: subscription.reason,
+                });
+            }
         }
 
         const { accessToken, refreshToken } = generateTokens(
@@ -72,6 +104,13 @@ export const login = async (req: Request, res: Response) => {
                 role: user.role,
                 depotId: user.depotId,
             },
+            subscription: subscription
+                ? {
+                      status: subscription.status,
+                      pastDue: subscription.pastDue,
+                      message: subscription.pastDue ? subscription.message : null,
+                  }
+                : null,
         });
     } catch (error) {
         console.error(error);
@@ -158,10 +197,25 @@ export const verifyPhone = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'No account found with this phone number' });
         }
 
+        // Issue and send an OTP if SMS is configured. Never fail the request if
+        // SMS delivery fails — legacy clients can still proceed (see resetPassword).
+        let otpSent = false;
+        if (isSmsConfigured()) {
+            try {
+                const code = await issueOtp(user.phone!, 'PASSWORD_RESET');
+                await sendSmsOtp(user.phone!, code);
+                otpSent = true;
+            } catch (smsErr: any) {
+                console.error('[verifyPhone] OTP send failed:', smsErr?.message);
+            }
+        }
+
         // Phone exists — Flutter can now show the new password fields
         return res.status(200).json({
             message: 'Account found',
             phone: user.phone,
+            otpSent,
+            otpRequired: !ALLOW_LEGACY_RESET,
         });
     } catch (error) {
         console.error(error);
@@ -169,10 +223,31 @@ export const verifyPhone = async (req: Request, res: Response) => {
     }
 };
 
-// Step 2: reset password (phone was already verified client-side in step 1)
+// Optional intermediate step: verify an OTP before allowing reset.
+export const verifyPasswordOtp = async (req: Request, res: Response) => {
+    try {
+        const { phone, code } = req.body;
+        if (!phone || !code) {
+            return res.status(400).json({ message: 'Phone and code required' });
+        }
+        const ok = await verifyOtp(phone, String(code), 'PASSWORD_RESET');
+        if (!ok) {
+            return res
+                .status(400)
+                .json({ message: 'Invalid or expired code', code: 'OTP_INVALID' });
+        }
+        return res.status(200).json({ message: 'Code verified', verified: true });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// Step 2: reset password. When a `code` is supplied it is verified (secure path).
+// When it is absent, the legacy phone-only reset is used only if enabled.
 export const resetPassword = async (req: Request, res: Response) => {
     try {
-        const { phone, newPassword } = req.body;
+        const { phone, newPassword, code } = req.body;
 
         if (!phone || !newPassword) {
             return res.status(400).json({ message: 'Phone and new password required' });
@@ -188,6 +263,26 @@ export const resetPassword = async (req: Request, res: Response) => {
 
         if (!user) {
             return res.status(404).json({ message: 'Account not found' });
+        }
+
+        // Enforce OTP verification unless legacy mode is explicitly allowed.
+        if (code) {
+            const ok = await verifyOtp(phone, String(code), 'PASSWORD_RESET');
+            if (!ok) {
+                return res
+                    .status(400)
+                    .json({ message: 'Invalid or expired code', code: 'OTP_INVALID' });
+            }
+        } else if (!ALLOW_LEGACY_RESET) {
+            return res.status(400).json({
+                message: 'Verification code required',
+                code: 'OTP_REQUIRED',
+            });
+        } else {
+            console.warn(
+                `[resetPassword] Legacy (code-less) reset used for ${phone}. ` +
+                    `Set ALLOW_LEGACY_RESET=false once clients send OTP codes.`
+            );
         }
 
         const hashed = await bcrypt.hash(newPassword, 10);
