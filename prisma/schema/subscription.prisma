@@ -1,0 +1,22 @@
+// Ledger of subscription payments recorded (manually) against a depot.
+model SubscriptionPayment {
+  id      String @id @default(cuid())
+  depotId String
+  depot   Depot  @relation(fields: [depotId], references: [id])
+
+  amount      Float
+  plan        String?
+  periodStart DateTime?
+  periodEnd   DateTime?
+  method      String    @default("MANUAL") // MANUAL | MOBILE_MONEY | BANK | CASH
+  reference   String?
+  note        String?
+
+  recordedById String?
+  recordedBy   User?   @relation(fields: [recordedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([depotId])
+  @@index([createdAt])
+}

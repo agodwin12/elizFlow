@@ -1,3 +1,18 @@
+enum BusinessType {
+  DEPOT // beer depot – sells mostly full crates
+  BAR // retail bar – sells mostly single bottles/units
+  RETAIL // general retail – sells units
+  HYBRID // sells both packages and units
+}
+
+enum SubscriptionStatus {
+  TRIAL // in free trial
+  ACTIVE // paid & current
+  PAST_DUE // expired but within grace period
+  BLOCKED // manually blocked by super admin (e.g. non-payment)
+  EXPIRED // subscription lapsed
+}
+
 model Depot {
   id        String   @id @default(cuid())
   name      String
@@ -9,6 +24,22 @@ model Depot {
   updatedAt DateTime @updatedAt
   logoUrl   String?
 
+  // ── Business configuration ────────────────────────────────────
+  businessType BusinessType @default(DEPOT)
+  currency     String       @default("FCFA")
+
+  // Per-depot receipt sequence (incremented atomically per sale).
+  lastReceiptNumber Int @default(0)
+
+  // ── Subscription / billing ────────────────────────────────────
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  subscriptionPlan   String? // e.g. BASIC / PRO – free-form
+  trialEndsAt        DateTime?
+  subscriptionEndsAt DateTime?
+  gracePeriodDays    Int                @default(3)
+  blockedReason      String?
+  blockedAt          DateTime?
+
   users          User[]
   products       Product[]
   customers      Customer[]
@@ -17,4 +48,12 @@ model Depot {
   stockMovements StockMovement[]
   tournees       Tournee[]
   deliveryStops  DeliveryStop[]
+
+  subscriptionPayments SubscriptionPayment[]
+  registerShifts       RegisterShift[]
+  expenses             Expense[]
+  saleReturns          SaleReturn[]
+  suppliers            Supplier[]
+  auditLogs            AuditLog[]
+  stockCounts          StockCount[]
 }

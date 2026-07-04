@@ -1,23 +1,64 @@
 model Product {
-  id                String   @id @default(cuid())
-  name              String
-  category          String
-  imageUrl          String?
-  costPrice         Float
-  sellingPrice      Float
-  stock             Int      @default(0)
-  unit String @default("CASIER")
-  lowStockThreshold Int      @default(10)
-  isActive          Boolean  @default(true)
-  depotId           String
-  depot             Depot    @relation(fields: [depotId], references: [id])
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id       String  @id @default(cuid())
+  name     String
+  category String
+  imageUrl String?
+  sku      String?
+  barcode  String?
 
-  saleItems SaleItem[]
-  stockMovements StockMovement[]
+  // ── Pricing ────────────────────────────────────────────────────
+  // costPrice / sellingPrice remain the PACKAGE (e.g. crate) prices for
+  // backward compatibility. When a product is also sold in single base
+  // units (e.g. bottles), the unit* prices below are used.
+  costPrice    Float
+  sellingPrice Float
+
+  // Price for a single base unit (e.g. one bottle). Null = not sold by unit.
+  unitCostPrice    Float?
+  unitSellingPrice Float?
+
+  // Optional explicit half-package price (e.g. half crate). If null and
+  // sellByHalf is true it is derived (see sale engine).
+  halfPackagePrice Float?
+
+  // ── Packaging / units ─────────────────────────────────────────
+  // Stock is ALWAYS stored in base units (the smallest sellable unit).
+  // packSize = number of base units in one package (e.g. 12 bottles/crate).
+  // packSize = 1 means the package == the base unit (backward compatible
+  // with all existing data, which counted whole crates).
+  stock       Int    @default(0) // in BASE units
+  packSize    Int    @default(1) // base units per package
+  baseUnit    String @default("UNITE") // e.g. BOUTEILLE / UNITE
+  packageUnit String @default("CASIER") // e.g. CASIER / CARTON
+
+  // Legacy field kept for backward compatibility with existing clients.
+  unit String @default("CASIER")
+
+  // Which selling modes are allowed for this product.
+  sellByPackage Boolean @default(true)
+  sellByHalf    Boolean @default(false)
+  sellByUnit    Boolean @default(false)
+
+  // lowStockThreshold is expressed in BASE units.
+  lowStockThreshold Int     @default(10)
+  isActive          Boolean @default(true)
+
+  depotId String
+  depot   Depot  @relation(fields: [depotId], references: [id])
+
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  saleItems       SaleItem[]
+  stockMovements  StockMovement[]
+  stockCountItems StockCountItem[]
 
   @@index([depotId])
-  @@index([depotId, isActive])   // most used - active products per depot
+  @@index([depotId, isActive]) // most used - active products per depot
   @@index([name])
+  @@index([depotId, barcode])
+  @@index([depotId, sku])
 }

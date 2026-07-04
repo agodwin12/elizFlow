@@ -1,0 +1,37 @@
+// A physical inventory count session. Owner counts real stock, then applies
+// the count which generates CORRECTION stock movements for any variance.
+model StockCount {
+  id      String @id @default(cuid())
+  depotId String
+  depot   Depot  @relation(fields: [depotId], references: [id])
+  userId  String
+  user    User   @relation(fields: [userId], references: [id])
+
+  status String  @default("OPEN") // OPEN | APPLIED | CANCELLED
+  note   String?
+
+  items StockCountItem[]
+
+  createdAt DateTime  @default(now())
+  appliedAt DateTime?
+
+  @@index([depotId])
+  @@index([depotId, status])
+}
+
+model StockCountItem {
+  id           String     @id @default(cuid())
+  stockCountId String
+  stockCount   StockCount @relation(fields: [stockCountId], references: [id])
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id])
+
+  systemStock  Int // base units the system thought there were (snapshot)
+  countedStock Int // base units physically counted
+  variance     Int // countedStock - systemStock
+
+  createdAt DateTime @default(now())
+
+  @@index([stockCountId])
+  @@index([productId])
+}

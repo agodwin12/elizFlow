@@ -1,0 +1,29 @@
+// A cash register session (shift) opened by a cashier/owner. Used for
+// end-of-day reconciliation (Z-report): opening float vs counted cash.
+model RegisterShift {
+  id      String @id @default(cuid())
+  depotId String
+  depot   Depot  @relation(fields: [depotId], references: [id])
+  userId  String
+  user    User   @relation(fields: [userId], references: [id])
+
+  status String @default("OPEN") // OPEN | CLOSED
+
+  openingFloat   Float  @default(0)
+  closingCounted Float? // physically counted cash at close
+  expectedCash   Float? // computed expected cash at close
+  difference     Float? // closingCounted - expectedCash
+
+  note        String?
+  openingNote String?
+  closingNote String?
+
+  openedAt DateTime  @default(now())
+  closedAt DateTime?
+
+  sales Sale[]
+
+  @@index([depotId])
+  @@index([depotId, status])
+  @@index([userId])
+}

@@ -1,0 +1,15 @@
+// One-time codes for phone-verified flows (password reset). The code is
+// stored hashed; only the last active code per phone+purpose is honoured.
+model OtpCode {
+  id        String   @id @default(cuid())
+  phone     String
+  codeHash  String
+  purpose   String   @default("PASSWORD_RESET")
+  expiresAt DateTime
+  consumedAt DateTime?
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([phone, purpose])
+  @@index([expiresAt])
+}

@@ -1,20 +1,25 @@
 model StockMovement {
-  id          String   @id @default(cuid())
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id])
-  depotId     String
-  depot       Depot    @relation(fields: [depotId], references: [id])
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  type        String   // RESTOCK, DAMAGE, RETURN, CORRECTION
-  quantity    Int      // positive = added, negative = removed
+  id            String   @id @default(cuid())
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  depotId       String
+  depot         Depot    @relation(fields: [depotId], references: [id])
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  // RESTOCK | DAMAGE | RETURN | CORRECTION | SALE | SALE_RETURN | STOCK_COUNT
+  type          String
+  quantity      Int      // in BASE units. positive = added, negative = removed
   previousStock Int
-  newStock    Int
-  note        String?
-  createdAt   DateTime @default(now())
+  newStock      Int
+  note          String?
 
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
 
-    @@index([depotId])
-    @@index([productId])
-    @@index([createdAt])
+  createdAt DateTime @default(now())
+
+  @@index([depotId])
+  @@index([productId])
+  @@index([createdAt])
+  @@index([depotId, type])
 }
